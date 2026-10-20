@@ -91,6 +91,8 @@ log_request(struct view *view, enum request request, struct line *line)
 		return REQ_NONE;
 
 	case REQ_EDIT:
+		if (diff_common_reword(view, line))
+			return REQ_NONE;
 		return diff_common_edit(view, request, line);
 
 	case REQ_ENTER:
