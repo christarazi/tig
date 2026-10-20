@@ -808,7 +808,16 @@ diff_common_reword(struct view *view, struct line *line)
 {
 	struct line *commit_line = find_line_by_type(view, line, LINE_COMMIT, -1, LINE_DIFF_HEADER);
 	char id[SIZEOF_REV];
+	char name[SIZEOF_REF] = "";
+	char rev[SIZEOF_STR];
 	const char *reword_argv[] = { "git", "history", "reword", id, NULL };
+	const char *name_rev_argv[] = {
+		"git", "name-rev", "--name-only", "--no-undefined",
+			"--refs=refs/heads/*", diff_view.vid, NULL
+	};
+	const char *rev_parse_argv[] = { "git", "rev-parse", "--verify", "--quiet", rev, NULL };
+	struct view *other;
+	int i;
 
 	if (!commit_line || find_line_by_type(view, line, LINE_DIFF_STAT, -1, LINE_COMMIT))
 		return false;
@@ -819,8 +828,32 @@ diff_common_reword(struct view *view, struct line *line)
 	}
 
 	string_copy_rev_from_commit_line(id, box_text(commit_line));
-	if (open_external_viewer(reword_argv, repo.cdup, false, false, false, false, true, ""))
-		report("Reworded commit %s", id);
+
+	/* Name the diff view's commit relative to a branch so that it can
+	 * be found after the rewrite. git history refuses merges, so the
+	 * name will point to the rewritten commit. */
+	if (view_is_displayed(&diff_view) && diff_view.prev)
+		io_run_buf(name_rev_argv, name, sizeof(name), NULL, false);
+
+	if (!open_external_viewer(reword_argv, repo.cdup, false, false, false, false, false, ""))
+		return true;
+
+	/* The descendants were rewritten too, so refresh all views and clear
+	 * their watches to avoid refreshing them twice. */
+	load_refs(true);
+	foreach_displayed_view (other, i) {
+		watch_dirty(&other->watch);
+
+		if (other == &diff_view) {
+			if (*name && string_format(rev, "refs/heads/%s", name))
+				io_run_buf(rev_parse_argv, other->env->commit, sizeof(other->env->commit), NULL, false);
+			reload_view(other);
+		} else if (view_can_refresh(other)) {
+			refresh_view(other);
+		}
+	}
+
+	report("Reworded commit %s", id);
 	return true;
 }
 
