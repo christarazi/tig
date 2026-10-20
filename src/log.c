@@ -33,10 +33,7 @@ struct log_state {
 static inline void
 log_copy_rev(struct view *view, struct line *line)
 {
-	const char *text = box_text(line);
-	size_t offset = get_graph_indent(text);
-
-	string_copy_rev_from_commit_line(view->ref, text + offset);
+	string_copy_rev_from_commit_line(view->ref, box_text(line));
 	view->env->blob[0] = 0;
 }
 
